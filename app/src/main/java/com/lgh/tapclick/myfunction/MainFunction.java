@@ -449,39 +449,48 @@ public class MainFunction {
                 executorServiceSub.schedule(new Runnable() {
                     @Override
                     public void run() {
-                        if (!debounceSet.add(e)) {
-                            return;
+
+                        if (e.action == Widget.ACTION_CLICK) {
+
+                            if (!debounceSet.add(e)) {
+                                return;
+                            }
+                            executorServiceSub.schedule(new Runnable() {
+                                @Override
+                                public void run() {
+                                    debounceSet.remove(e);
+                                }
+                            }, e.debounceDelay, TimeUnit.MILLISECONDS);
+
+                            executorServiceSub.scheduleWithFixedDelay(new Runnable() {
+                                private int clickNumber = 0;
+
+                                @Override
+                                public void run() {
+                                    if (!onOffWidgetSub || !nodeInfo.refresh()) {
+                                        throw new RuntimeException();
+                                    }
+                                    if (++clickNumber > e.clickNumber) {
+                                        throw new RuntimeException();
+                                    }
+                                    if (e.clickOnly) {
+                                        click(temRect.centerX(), temRect.centerY());
+                                    } else if (!nodeInfo.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+                                        click(temRect.centerX(), temRect.centerY());
+                                    }
+                                }
+                            }, 0, e.clickInterval, TimeUnit.MILLISECONDS);
+                            addLog("发现控件并点击：" + gson.toJson(e));
                         }
-                        executorServiceSub.schedule(new Runnable() {
-                            @Override
-                            public void run() {
-                                debounceSet.remove(e);
-                            }
-                        }, e.debounceDelay, TimeUnit.MILLISECONDS);
 
-                        executorServiceSub.scheduleWithFixedDelay(new Runnable() {
-                            private int clickNumber = 0;
-
-                            @Override
-                            public void run() {
-                                if (!onOffWidgetSub || !nodeInfo.refresh()) {
-                                    throw new RuntimeException();
-                                }
-                                if (e.clickOnly) {
-                                    click(temRect.centerX(), temRect.centerY());
-                                } else if (!nodeInfo.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
-                                    click(temRect.centerX(), temRect.centerY());
-                                }
-                                if (++clickNumber >= e.clickNumber) {
-                                    throw new RuntimeException();
-                                }
-                            }
-                        }, 0, e.clickInterval, TimeUnit.MILLISECONDS);
+                        if (e.action == Widget.ACTION_BACK) {
+                            service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK);
+                            addLog("发现控件并返回：" + gson.toJson(e));
+                        }
 
                         e.clickCount += 1;
                         e.lastClickTime = System.currentTimeMillis();
                         dataDao.updateWidget(e);
-                        addLog("点击控件：" + gson.toJson(e));
 
                         if (alreadyClickSet.size() >= widgets.size()) {
                             onOffWidgetSub = false;
